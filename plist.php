@@ -1,246 +1,246 @@
 <?php
+/*
+ * The MIT License
+ *
+ * Copyright (c) 2011 Shuhei Tanuma
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 
-$data = <<<EOF
-// !$*UTF8*$!
-{
-	archiveVersion = "\"$(SRCROOT)\"";
-	"super classes" = {};
-	objectVersion = 46;
-	ARCHS = "$(ARCHS_STANDARD_32_BIT)";
-	data = {attr = (raw,);};
-	objects = {
-		Hello = Moe;
-		Ana = {
-			Monu = Wana;
-		};
-	};
-	array = (
-		abc,
-		junior
-		);
-};
-EOF;
-
-
-define("CF_TYPE_OBJECT",0x01);
-define("CF_TYPE_ARRAY",0x02);
-var_dump(parse($data));
-
-function parse($data,&$offset=0){
-static $line = 0;
-$result = array();
-
-$length = strlen($data);
-$flag = 0x0;
-$sub = 0x0;
-$mark = 0;
-$obj_nest = 0;
-$arr_nest = 0;
-$offsetsFirst = true;
-$DQ = false;
-
-for ($offset=$offset;$offset<$length;$offset++) {
-	$previous = ($offset > 0) ? $data[$offset-1] : null;
-	$current = $data[$offset];
-	$next = ($offset+1 < $length) ? $data[$offset+1] : null;
+/**
+ * Plist
+ * NextStep Plist format parser.
+ *
+ * you should use CFPropertyList instead of this.
+ * currentry, this libarary is focusing to parse NextStep style Plist file.
+ * 
+ * you might also use plutil.
+ */
+class Plist{
+	const CF_TYPE_OBJECT = 0x01;
+	const CF_TYPE_ARRAY = 0x02;
 	
-	// ignore comments
-	if ($current == "/" && $next == "/" && $offsetsFirst) {
-		// skip until line fead
-		for($j=$offset;$j<$length && $data[$j] != "\n";$j++){}
-		$offset = $j;
-		continue;
-		//var_dump(substr($data,$offset,$j));
-	} else if ($DQ == false && $current == "/" && $next == "*") {
-		for($j=$offset+2; $j<$length && ($data[$j] == "*" && $data[$j+1] == "/") == false;$j++){}
-		$offset = $j+1;
-		continue;
-		//var_dump(substr($data,$offset,$j-$offset+2));
-	}
-	
-	/* process block */
-	if ($flag == 0x0) {
-		if ($current == "{") {
-			$flag = CF_TYPE_OBJECT;
-			$obj_nest++;
-		} else if ($current == "(") {
-			$flag = CF_TYPE_ARRAY;
-			$obj_nest++;
-		}
-	} else if ($flag == CF_TYPE_OBJECT) {
-		if ($sub == 0x0) {
-			// skip spaces;
-			if ($current == " " || $current == "\t" || $current == "\r" || $current == "\n") {
-			} else if ($current == "}") {
-				for($j=$offset; $j<$length && ($data[$j] != ";");$j++){}
-				$offset = $j;
-				return $result;
-			} else if ($current == '"' && $previous != "\\") {
-				$DQ = true;
-				$sub = 0x1;
-				$mark = $offset;
-			} else {
-				$sub = 0x1;
-				$mark = $offset;
-			}
-		} else if ($sub == 0x1) {
-			// finding key
-			if ($DQ == false && ($current == ";" || $current == " " || $current == "\t" || $current == "\r" || $current == "\n")) {
-				$key = substr($data,$mark,$offset-$mark);
-				$result[$key] = null;
-				$mark =  0;
-				$sub = 0x02;
-			} else if ($DQ == true && ($current == '"' && $previous != "\\")) {
-				$DQ = false;
-				$key = substr($data,$mark,$offset-$mark);
-				$result[$key] = null;
-				$mark =  0;
-				$sub = 0x02;
+	const OP_SPACE = 0x00;
+	const OP_DICT_KEY = 0x01;
+	const OP_EQUAL = 0x02;
+	const OP_SPACE2 = 0x03;
+	const OP_VALUE = 0x04;
+	const OP_SEMI_COLON = 0x05;
 
-			} else {
-			}
-		} else if ($sub == 0x02) {
-			// expected  = 
-			if ($current == " " || $current == "\t" || $current == "\r" || $current == "\n") {
-			} else if ($current == "="){
-				$sub = 0x3;
-			} else {
-				var_dump(substr($data,$offset));
-				throw new Exception("parse error: unexpected token `{$current}` found.");
-			}
-		} else if ($sub == 0x03) {
-			// skip spaces
-			if ($current == " " || $current == "\t" || $current == "\r" || $current == "\n") {
-			} else if ($current == "{") {
-				// nested
-				$result[$key] = parse($data,$offset);
-				//var_dump(substr($data,$offset));
-				//printf("%s : %s\n",$key,json_encode($value));
-				$sub = 0x0;
-			} else if ($current == "(") {
-				// nested array
-				$result[$key] = parse($data,$offset);
-				//var_dump(substr($data,$offset));
-				//printf("%s : %s\n",$key,json_encode($value));
-				$sub = 0x0;
-			} else if ($current == '"') {
-				$DQ = true;
-				$sub = 0x4;
-				$mark = $offset;
-			} else {
-				$sub = 0x4;
-				$mark = $offset;
-			}
-		} else if ($sub == 0x04) {
-			if ($DQ == false && ($current == ";" || $current == " " || $current == "\t" || $current == "\r" || $current == "\n")) {
-				$value = substr($data,$mark,$offset-$mark);
-				$mark =  0;
-				if ($current == ";"){
-					$sub = 0x00;
-				} else {
-					$sub = 0x05;
-				}
-				//printf("%s : %s\n",$key,$value);
-				$result[$key] = $value;
-			} else if ($DQ == true && ($current == '"' && $previous != "\\")) {
-				$value = substr($data,$mark,$offset-$mark);
+	protected static $line = 0;
 
-				$DQ = false;
-				$mark =  0;
-				if ($current == ";"){
-					$sub = 0x00;
-				} else {
-					$sub = 0x05;
-				}
-				//printf("%s : %s\n",$key,$value);
-				$result[$key] = $value;
-			} else {
-				
-			}
-		} else if ($sub == 0x05) {
-			if ($current == " " || $current == "\t" || $current == "\r" || $current == "\n") {
-			} else if ($current == ";") {
-				$sub = 0x00;
-			} else {
-				var_dump(substr($data,$offset));
-				printf(
-					"
-flag :%d
-sub :%d
-mark :%d
-DQ :%d
-					",
-					$flag,$sub,$mark,$DQ
-					);
-				throw new Exception("2parse error: unexpected token `{$current}` found. line:{$line}");
-			}
+	public static function parse($data, &$offset=0, $length = 0) {
+		$result = array();
+
+		if($length == 0) {
+			self::$line = 0;
+			$length = strlen($data);
 		}
 
-	} else if ($flag == CF_TYPE_ARRAY) {
-		/*kopipe*/
-		
-		if ($sub == 0x0) {
-			// skip spaces;
-			if ($current == " " || $current == "\t" || $current == "\r" || $current == "\n") {
-			} else if ($current == ")") {
-				for($j=$offset; $j<$length && ($data[$j] != ";");$j++){}
-				$offset = $j;
-				return $result;
-			} else if ($current == '"') {
-				$DQ = true;
-				$sub = 0x1;
-				$mark = $offset;
-			} else {
-				$sub = 0x1;
-				$mark = $offset;
-			}
-		} else if ($sub == 0x1) {
-			// finding values
-			if ($DQ == false && ($current == "," || $current == " " || $current == "\t" || $current == "\r" || $current == "\n")) {
-				$value = substr($data,$mark,$offset-$mark);
-				$result[] = $value;
-				$mark =  0;
-				if($current == ","){
-					$sub = 0x00;
-				} else {
-					$sub = 0x02;
-				}
-			} else if ($DQ == true && ($current == '"' && $previous != "\\")) {
-				$value = substr($data,$mark,$offset-$mark);
-				$result[] = $value;
-				$mark =  0;
-				$sub = 0x02;
-			} else if ($current == ")"){
-				$value = substr($data,$mark,$offset-$mark);
-				$result[] = $value;
-				for($j=$offset; $j<$length && ($data[$j] != ";");$j++){}
-				$offset = $j;
+		$flag = $mark = $sub = 0x0;
+		$arr_nest  = $obj_nest = 0;
+		$token_offset = 0;
+		$DQ = false;
 
-				return $result;
-			} else {
+		for (;$offset<$length;$offset++) {
+			$do_process = true;
+
+			$previous = ($offset > 0) ? $data[$offset-1] : null;
+			$current  = $data[$offset];
+			$next     = ($offset+1 < $length) ? $data[$offset+1] : null;
+			
+			/** ignore comments */
+			if ($DQ == false && $current == "/" && $next == "/") {
+				for(;$offset<$length && $data[$offset] != "\n";$offset++){}
+				self::$line++;
+				continue;
+			} else if ($DQ == false && $current == "/" && $next == "*") {
+				for($offset; $offset<$length && ($data[$offset] == "*" && $data[$offset+1] == "/") == false;$offset++){}
+				$offset +=1;
+				continue;
 			}
-		} else if ($sub == 0x2) {
-			if ($current == "," || $current == " " || $current == "\t" || $current == "\r" || $current == "\n") {
-				$mark =  0;
-				$sub = 0x00;
-			} else {
-				var_dump(substr($data,$offset));
-				throw new Exception("2parse error: unexpected token `{$current}` found.");
+			
+			/* skip spaces */
+			if ($flag == self::CF_TYPE_OBJECT) {
+				if ($DQ == false && ($sub == self::OP_SPACE || $sub == self::OP_EQUAL || $sub == self::OP_SPACE2 || $sub == self::OP_SEMI_COLON)) {
+					if ($current == " " || $current == "\t" || $current == "\r" || $current == "\n") {
+						$do_process = false;
+					}
+				}
+			}
+			
+			if ($do_process) {
+				/* detect object type */
+				if ($flag == self::OP_SPACE) {
+					switch ($current) {
+						case '{':
+							$flag = self::CF_TYPE_OBJECT;
+							break;
+						case '(':
+							$flag = self::CF_TYPE_ARRAY;
+							break;
+						default:
+							throw new Exception("Unexpected token {$current} found.");
+							break;
+					}
+					$token_offset = 0;
+					$obj_nest++;
+
+				} else if ($flag == self::CF_TYPE_OBJECT) {
+					if ($sub == self::OP_SPACE) {
+						if ($current == "}") {
+							/* Todo: empty / omitted object */
+							for(; $offset<$length && ($data[$offset] != ";");$offset++){}
+							return $result;
+						} else if ($token_offset == 0 && $current == '"') {
+							$DQ = true;
+						}
+						$sub = self::OP_DICT_KEY;
+						$mark = $offset;
+						$token_offset = 0;
+
+					} else if ($sub == self::OP_DICT_KEY) {
+						// finding key
+						if ($DQ == false && ($current == ";" || $current == " " || $current == "\t" || $current == "\r" || $current == "\n")) {
+							$key = substr($data,$mark,$offset-$mark);
+							$result[$key] = null;
+							$mark =  0;
+							$sub = self::OP_EQUAL;
+						} else if ($DQ == true && ($current == '"' && $previous != "\\")) {
+							$DQ = false;
+							$key = substr($data,$mark,$offset-$mark);
+							$result[$key] = null;
+							$mark =  0;
+							$sub = self::OP_EQUAL;
+						} else {
+						}
+					} else if ($sub == self::OP_EQUAL) {
+						if ($current == '='){
+							$sub = self::OP_SPACE2;
+						} else {
+							throw new Exception("parse error: unexpected token `{$current}` found.");
+						}
+					} else if ($sub == self::OP_SPACE2) {
+						if ($current == "{") {
+							$result[$key] = self::parse($data,$offset,$length);
+							$sub = self::OP_SPACE;
+						} else if ($current == "(") {
+							$result[$key] = self::parse($data,$offset,$length);
+							$sub = self::OP_SPACE;
+						} else if ($current == '"') {
+							$DQ = true;
+							$sub = self::OP_VALUE;
+							$mark = $offset;
+						} else {
+							$sub = self::OP_VALUE;
+							$mark = $offset;
+						}
+					} else if ($sub == self::OP_VALUE) {
+						if ($DQ == false && ($current == ";" || $current == " " || $current == "\t" || $current == "\r" || $current == "\n")) {
+							$value = substr($data,$mark,$offset-$mark);
+							$mark =  0;
+							if ($current == ";"){
+								$sub = self::OP_SPACE;
+							} else {
+								$sub = self::OP_SEMI_COLON;
+							}
+							$result[$key] = $value;
+						} else if ($DQ == true && ($current == '"' && $previous != "\\")) {
+							$value = substr($data,$mark,$offset-$mark);
+
+							$DQ = false;
+							$mark =  0;
+							if ($current == ";"){
+								$sub = self::OP_SPACE;
+							} else {
+								$sub = self::OP_SEMI_COLON;
+							}
+							$result[$key] = $value;
+						} else {
+							
+						}
+					} else if ($sub == self::OP_SEMI_COLON) {
+						if ($current == ";") {
+							$sub = self::OP_SPACE;
+						} else {
+							throw new Exception("parse error: unexpected token `{$current}` found. line:{self::$line}");
+						}
+					}
+
+				} else if ($flag == self::CF_TYPE_ARRAY) {
+					if ($sub == 0x0) {
+						// skip spaces;
+						if ($current == " " || $current == "\t" || $current == "\r" || $current == "\n") {
+						} else if ($current == ")") {
+							/* Todo */
+							for($offset; $offset<$length && ($data[$offset] != ";");$offset++){}
+							return $result;
+						} else if ($current == '"') {
+							$DQ = true;
+							$sub = 0x1;
+							$mark = $offset;
+						} else {
+							$sub = 0x1;
+							$mark = $offset;
+						}
+					} else if ($sub == 0x1) {
+						// finding values
+						if ($DQ == false && ($current == "," || $current == " " || $current == "\t" || $current == "\r" || $current == "\n")) {
+							$value = substr($data,$mark,$offset-$mark);
+							$result[] = $value;
+							$mark =  0;
+							if($current == ","){
+								$sub = 0x00;
+							} else {
+								$sub = 0x02;
+							}
+						} else if ($DQ == true && ($current == '"' && $previous != "\\")) {
+							$value = substr($data,$mark,$offset-$mark);
+							$result[] = $value;
+							$mark =  0;
+							$sub = 0x02;
+						} else if ($current == ")"){
+							$value = substr($data,$mark,$offset-$mark);
+							$result[] = $value;
+							for($j=$offset; $j<$length && ($data[$j] != ";");$j++){}
+							$offset = $j;
+
+							return $result;
+						} else {
+						}
+					} else if ($sub == 0x2) {
+						if ($current == "," || $current == " " || $current == "\t" || $current == "\r" || $current == "\n") {
+							$mark =  0;
+							$sub = 0x00;
+						} else {
+							throw new Exception("2parse error: unexpected token `{$current}` found.");
+						}
+					}
+				}
+			}
+
+			if ($current == "\n") {
+				self::$line++;
 			}
 		}
 
-		/*kopipe*/
+		return $result;
 	}
-
-	// for next
-	if ($current == "\n") {
-		$offsetsFirst = true;
-		$line++;
-	} else {
-		$offsetsFirst = false;
-	}
-}
-
-return $result;
 }

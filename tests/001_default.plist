@@ -1,0 +1,18 @@
+// !$*UTF8*$!
+{
+	archiveVersion = "\"$(SRCROOT)\"";
+	"super classes" = {};
+	objectVersion = 46;
+	ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+	data = {attr = (raw,);};
+	objects = {
+		Hello = Moe;
+		Ana = {
+			Monu = Wana;
+		};
+	};
+	array = (
+		abc,
+		junior
+		);
+};

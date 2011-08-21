@@ -1,0 +1,29 @@
+<?php
+return array (
+  'archiveVersion' => '"\\"$(SRCROOT)\\"',
+  '"super classes' => 
+  array (
+  ),
+  'objectVersion' => '46',
+  'ARCHS' => '"$(ARCHS_STANDARD_32_BIT)',
+  'data' => 
+  array (
+    'attr' => 
+    array (
+      0 => 'raw',
+    ),
+  ),
+  'objects' => 
+  array (
+    'Hello' => 'Moe',
+    'Ana' => 
+    array (
+      'Monu' => 'Wana',
+    ),
+  ),
+  'array' => 
+  array (
+    0 => 'abc',
+    1 => 'junior',
+  ),
+);
