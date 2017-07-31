@@ -195,7 +195,7 @@ class Plist{
 						} else if ($current == '"') {
 							$DQ = true;
 							$sub = 0x1;
-							$mark = $offset;
+							$mark = $offset+1;
 						} else {
 							$sub = 0x1;
 							$mark = $offset;
@@ -215,7 +215,7 @@ class Plist{
 							$value = substr($data,$mark,$offset-$mark);
 							$result[] = $value;
 							$mark =  0;
-							$sub = 0x02;
+							$sub = 0x00;
 						} else if ($current == ")"){
 							$value = substr($data,$mark,$offset-$mark);
 							$result[] = $value;
